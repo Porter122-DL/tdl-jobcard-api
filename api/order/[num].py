@@ -217,8 +217,12 @@ def build_job_card(order):
                 mp_qty = int(li.get("quantity") or 1)
                 break
 
-    customer = order.get("customer") or {}
-    customer_name = f"{customer.get('firstName') or ''} {customer.get('lastName') or ''}".strip()
+    # Prefer Rider Name from line item attrs (always readable + often differs from buyer).
+    # Fall back to buyer's customer.firstName+lastName (requires read_customers scope).
+    customer_name = (main_attrs.get("Rider Name") or "").strip()
+    if not customer_name:
+        customer = order.get("customer") or {}
+        customer_name = f"{customer.get('firstName') or ''} {customer.get('lastName') or ''}".strip()
 
     designer_tag_fallback = ""
     for tag in order.get("tags", []) or []:
