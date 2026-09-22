@@ -221,7 +221,9 @@
         return;
     }
 
+    var _t0 = (new Date()).getTime();
     var order = httpGet(ENDPOINT_URL + orderNum + API_KEY);
+    var _tHttp = (new Date()).getTime() - _t0;
     if (order.error) {
         alert("Job Card Fill failed:\n\n" + order.error);
         return;
@@ -233,7 +235,11 @@
     }
 
     // Build a single name→items index (one full DOM walk instead of 20+)
+    var _t1 = (new Date()).getTime();
     var index = buildNameIndex(doc);
+    var _tIndex = (new Date()).getTime() - _t1;
+    var _totalItems = 0;
+    for (var _k in index) _totalItems += index[_k].length;
 
     var missingFrames = [];
     var frameMap = {
@@ -259,6 +265,7 @@
     }
 
     var proofItems = index["PROOF_THUMBNAIL"] || [];
+    var _tFill = (new Date()).getTime() - _t1 - _tIndex;
 
     // Skip auto-save — designer decides when to save (saving large files can add several seconds)
 
@@ -283,5 +290,9 @@
     }
     if (missingFrames.length) summary += "\n⚠ Missing text frames: " + missingFrames.join(", ");
     if (missingCheckboxes.length) summary += "\n⚠ Missing checkbox groups: " + missingCheckboxes.join(", ");
+    summary += "\n\n⏱ Timing:\n" +
+        "  HTTP fetch:  " + _tHttp + " ms\n" +
+        "  DOM index:   " + _tIndex + " ms  (" + _totalItems + " named items)\n" +
+        "  Fill fields: " + _tFill + " ms";
     alert(summary);
 })();
