@@ -125,10 +125,14 @@
 
         scriptFile.execute();
 
-        var maxIters = 120; // up to 30s
-        while (maxIters-- > 0) {
-            $.sleep(250);
+        // Tight poll — first 2s at 50ms, then back off to 200ms
+        var startMs = (new Date()).getTime();
+        var timeoutMs = 15000;
+        while (true) {
+            var elapsed = (new Date()).getTime() - startMs;
             if (doneFile.exists) break;
+            if (elapsed > timeoutMs) break;
+            $.sleep(elapsed < 2000 ? 50 : 200);
         }
         if (!doneFile.exists) {
             return { error: "Request timed out reaching " + fullUrl + ". Check internet / endpoint URL." };
@@ -153,33 +157,36 @@
         return parsed;
     }
 
-    // ---------- DOM traversal ----------
-    function walkItems(container, cb) {
-        var i;
-        if (container.pageItems) {
-            for (i = 0; i < container.pageItems.length; i++) {
-                cb(container.pageItems[i]);
-                walkItems(container.pageItems[i], cb);
+    // ---------- DOM traversal — walk once, build name→items map ----------
+    function buildNameIndex(doc) {
+        var index = {};
+        function push(item) {
+            if (item.name) {
+                if (!index[item.name]) index[item.name] = [];
+                index[item.name].push(item);
             }
         }
-        if (container.layers) {
-            for (i = 0; i < container.layers.length; i++) {
-                cb(container.layers[i]);
-                walkItems(container.layers[i], cb);
+        function walk(container) {
+            var i;
+            if (container.pageItems) {
+                for (i = 0; i < container.pageItems.length; i++) {
+                    push(container.pageItems[i]);
+                    walk(container.pageItems[i]);
+                }
+            }
+            if (container.layers) {
+                for (i = 0; i < container.layers.length; i++) {
+                    push(container.layers[i]);
+                    walk(container.layers[i]);
+                }
             }
         }
+        walk(doc);
+        return index;
     }
 
-    function findByName(doc, name) {
-        var results = [];
-        walkItems(doc, function (item) {
-            if (item.name === name) results.push(item);
-        });
-        return results;
-    }
-
-    function setText(doc, name, value) {
-        var items = findByName(doc, name);
+    function setText(index, name, value) {
+        var items = index[name] || [];
         for (var i = 0; i < items.length; i++) {
             if (items[i].typename === "TextFrame") {
                 items[i].contents = value == null ? "" : String(value);
@@ -188,8 +195,8 @@
         return items.length;
     }
 
-    function setCheckbox(doc, name, checked) {
-        var items = findByName(doc, name);
+    function setCheckbox(index, name, checked) {
+        var items = index[name] || [];
         for (var i = 0; i < items.length; i++) {
             try { items[i].hidden = !checked; } catch (e) {}
         }
@@ -225,6 +232,9 @@
         bike = prompt("Bike model wasn't in the Shopify order. Type it now:", "") || "";
     }
 
+    // Build a single name→items index (one full DOM walk instead of 20+)
+    var index = buildNameIndex(doc);
+
     var missingFrames = [];
     var frameMap = {
         "SHOPIFY_NUM": order.shopify_num,
@@ -238,19 +248,19 @@
         "MINI_PLATES_QTY": order.mini_plates_qty ? String(order.mini_plates_qty) : ""
     };
     for (var frameName in frameMap) {
-        if (setText(doc, frameName, frameMap[frameName]) === 0) missingFrames.push(frameName);
+        if (setText(index, frameName, frameMap[frameName]) === 0) missingFrames.push(frameName);
     }
 
     var missingCheckboxes = [];
     for (var i = 0; i < CHECKBOXES.length; i++) {
         var cbName = CHECKBOXES[i];
         var isChecked = !!(order.checkboxes && order.checkboxes[cbName]);
-        if (setCheckbox(doc, cbName, isChecked) === 0) missingCheckboxes.push(cbName);
+        if (setCheckbox(index, cbName, isChecked) === 0) missingCheckboxes.push(cbName);
     }
 
-    var proofItems = findByName(doc, "PROOF_THUMBNAIL");
+    var proofItems = index["PROOF_THUMBNAIL"] || [];
 
-    try { doc.save(); } catch (e) {}
+    // Skip auto-save — designer decides when to save (saving large files can add several seconds)
 
     var summary = "Job Card filled for order #" + orderNum + "\n\n" +
         "Customer:   " + (order.customer_name || "") + "\n" +
