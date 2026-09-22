@@ -13,7 +13,7 @@
 
 (function () {
     // ------- EDIT THIS ONE LINE -------
-    var ENDPOINT_URL = "https://tdl-jobcard-api.vercel.app/api/order/";
+    var ENDPOINT_URL = "https://tdl-jobcard-api-beta.vercel.app/api/order/";
     // If your Vercel deploy uses a shared secret, append it here:
     //   var API_KEY = "?key=YOUR_SECRET";
     var API_KEY = "";

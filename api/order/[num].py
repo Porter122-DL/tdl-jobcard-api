@@ -247,9 +247,6 @@ def build_job_card(order):
         "mini_plates_qty": mp_qty,
         "designer_tag_fallback": designer_tag_fallback,
         "checkboxes": checkboxes,
-        # DEBUG: remove once customer_name is confirmed working
-        "_debug_main_attrs_keys": sorted(main_attrs.keys()),
-        "_debug_has_customer": bool(order.get("customer")),
     }
 
 
